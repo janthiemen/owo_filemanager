@@ -7,7 +7,7 @@ enyo.kind({
 		{kind: "enyo.Signals", onbackbutton: "handleBackGesture"},
 		{layoutKind: "FittableRowsLayout", components: [
 			{kind: "PortsHeader", title: "File manager", classes: "enyo-fill", taglines: [
-				"Really, I hate taglines",
+				"Really, I hate taglines'",
 				"Look at all those files!",
 				"why don\'t you mkdir?",
 			]},
@@ -106,7 +106,9 @@ enyo.kind({
 			onComplete: "logServiceComplete"
         }
 	],
-	handleBackGesture: function() {
+	handleBackGesture: function(inSender, inEvent) {
+		inEvent.stopPropagation();
+		inEvent.preventDefault();
 		this.setIndex(0);
 	},
 	createDirPopup: function() {
