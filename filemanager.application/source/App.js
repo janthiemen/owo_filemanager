@@ -4,9 +4,10 @@ enyo.kind({
 	classes: "panels-sample-flickr-panels enyo-unselectable enyo-fit",
 	arrangerKind: "CollapsingArranger",
 	components: [
+		{kind: "enyo.Signals", onbackbutton: "handleBackGesture"},
 		{layoutKind: "FittableRowsLayout", components: [
 			{kind: "PortsHeader", title: "File manager", classes: "enyo-fill", taglines: [
-				"Really, I hate taglines'",
+				"Really, I hate taglines",
 				"Look at all those files!",
 				"why don\'t you mkdir?",
 			]},
@@ -17,22 +18,36 @@ enyo.kind({
 				]}
 			]}
 		]},
-		{name: "pictureView", fit: true, kind: "FittableRows", classes: "enyo-fit", components: [
+		{name: "itemView", fit: true, kind: "FittableRows", classes: "enyo-fit", components: [
 			{kind: "onyx.Toolbar", components: [
 				{name: "file_title", content: "Header"},
 			]},
 			{tag: "br"},
-			{kind: "onyx.Groupbox", components: [
-				{kind: "onyx.GroupboxHeader", content: "File information"},
-				{name: "type", content: "Type: ", style: "padding: 8px; color: black;"},
-				{name: "size", content: "Size: ", style: "padding: 8px; color: black;"},
-				{name: "full_path", content: "Full path: ", style: "padding: 8px; color: black;"}
-			]},
-			{kind:"onyx.Button", ontap: "remove", content: "Remove", classes: "onyx-negative"},
-			{kind: "onyx.InputDecorator", components: [
-				{kind: "onyx.Input", name: "newDir", placeholder: "Enter new folder name"}
-			]},
-			{kind:"onyx.Button", name: "createDirButton", ontap: "createDir", content: "Create folder", classes: "onyx-dark"}
+			{kind: "Scroller", horizontal: "hidden", classes: "scroller", fit: true, touch: true, components:[
+				{fit: true, style: "position: relative;", name: "imageContainer",  showing: false, components: [
+					{name: "imageItem", kind: "Image", classes: "enyo-fit panels-sample-flickr-center panels-sample-flickr-image", onload: "imageLoaded", onerror: "imageLoaded"},
+				]},
+				{kind: "onyx.Groupbox", components: [
+					{kind: "onyx.GroupboxHeader", content: "File information"},
+					{name: "type", content: "Type: ", style: "padding: 8px; color: black;"},
+					{name: "size", content: "Size: ", style: "padding: 8px; color: black;"},
+					{name: "fileExtension", content: "File extension: ", style: "padding: 8px; color: black;"},
+					{name: "full_path", content: "Full path: ", style: "padding: 8px; color: black;"},
+				]},
+				{kind:"onyx.Button", disabled: true, name: "removeButton", ontap: "remove", content: "Remove", classes: "onyx-negative"},
+				//TODO: put this in a popup
+				{name: "mkDirPopup", kind: "onyx.Popup", floating: true, centered: true, style: "padding: 10px", components: [
+					{kind: "onyx.InputDecorator", style: "color: black;", name: "newDirContainer", components: [
+						{kind: "onyx.Input", style: "color: black;", name: "newDir",  placeholder: "Enter new folder name"}
+					]},
+					{kind:"onyx.Button", name: "createDirButton", ontap: "createDir", content: "Create folder", classes: "onyx-dark"}
+				]},
+				{kind:"onyx.Button", name: "createDirPopupButton", disabled: true, ontap: "createDirPopup", content: "New folder", classes: "onyx-dark"},
+				{kind:"onyx.Button", name: "openFileButton", disabled: true, ontap: "openFileTap", content: "Open file", classes: "onyx-dark"},
+				{name: "errorPopupBase", kind: "onyx.Popup", floating: true, centered: true, style: "padding: 10px", components: [
+					{name: "errorPopup", content: "Popup..."}
+				]}
+			]}
 		]},
 		{
 			name: "getDirs",
@@ -75,6 +90,14 @@ enyo.kind({
 			onComplete: "getFileSizeComplete"
         },
 		{
+			name: "openFile",
+			kind: "enyo.PalmService",
+			service: "luna://com.palm.applicationManager",
+			method: "open",
+			subscribe: true,
+			onComplete: "openFileComplete"
+        },
+		{
 			name: "logService",
 			kind: "enyo.PalmService",
 			service: "luna://nl.kappline.owofm.service",
@@ -83,6 +106,12 @@ enyo.kind({
 			onComplete: "logServiceComplete"
         }
 	],
+	handleBackGesture: function() {
+		this.setIndex(0);
+	},
+	createDirPopup: function() {
+		this.$.mkDirPopup.show();
+	},
 	initList: function() {
 		this.$.list.setCount(this.results.length);
 		this.$.list.reset();
@@ -103,8 +132,15 @@ enyo.kind({
 		this.$.thumbnail.setSrc(item.thumbnail);
 		this.$.title.setContent(item.title || "Untitled");
 	},
+	enableButtons: function() {
+		this.$.removeButton.setDisabled(false);
+		this.$.createDirPopupButton.setDisabled(false);
+		this.$.openFileButton.setDisabled(false);
+	},
 	itemTap: function(inSender, inEvent) {
 		this.selectedItem = this.results[inEvent.index];
+		
+		this.enableButtons();
 		
 		if (this.selectedItem.dir) {
 			if (this.selectedItem.title == "../") {
@@ -124,13 +160,30 @@ enyo.kind({
 			this.currentRequest = this.$.getDirs.send({"dir":this.currentDir});
 			this.selectedItem['full_path'] = this.currentDir;
 			this.$.type.setContent("Type: folder");
-			this.$.createDirButton.setDisabled(false);
+			this.$.fileExtension.hide();
+			this.$.createDirButton.show();
+			this.$.newDirContainer.show();
+			this.$.openFileButton.hide();
+			this.$.imageContainer.hide();
 		} else {
 			this.currentRequest = this.$.logService.send({"data":"bestand"});
 			this.selectedItem['full_path'] = this.currentDir+"/"+this.selectedItem.title;
 			this.$.file_title.setContent(this.selectedItem.title);
+			//Check if item is an image
+			var fileExtensionArr =  this.selectedItem.title.split(".");
+			var fileExtension = fileExtensionArr[fileExtensionArr.length -1].toLowerCase();
+			this.$.fileExtension.show();
+			this.$.fileExtension.setContent("File extension: "+fileExtension);
+			if (fileExtension == "png" || fileExtension == "jpg" || fileExtension == "bmp") {
+				this.$.imageContainer.show();
+				this.$.imageItem.setSrc(this.selectedItem.full_path);
+			} else {
+				this.$.imageContainer.hide();
+			}
 			this.$.type.setContent("Type: file");
-			this.$.createDirButton.setDisabled(true);
+			this.$.createDirButton.hide();
+			this.$.newDirContainer.hide();
+			this.$.openFileButton.show();
 		}
 		this.$.full_path.setContent(this.selectedItem.full_path);
 		this.currentRequest = this.$.getFileSize.send({"path":this.selectedItem.full_path});
@@ -155,6 +208,8 @@ enyo.kind({
 		} else {
 			this.currentRequest = this.$.removeFile.send({"path":this.selectedItem.full_path});
 		}
+		this.$.errorPopup.setContent('Folder deleted. Press "../" to go back.');
+		this.$.errorPopupBase.show();
 	},
 	getFileSizeComplete: function(inSender, inEvent) {
 		var size = inEvent.data.size;
@@ -162,6 +217,18 @@ enyo.kind({
 	},
 	createDir: function(inSender, inEvent) {
 		this.currentRequest = this.$.mkDir.send({"path":this.selectedItem.full_path+"/"+this.$.newDir.getValue()});
+		this.$.mkDirPopup.hide();
+		this.$.errorPopup.setContent("Folder created");
+		this.$.errorPopupBase.show();
+	},
+	openFileTap: function(inSender, inEvent) {
+		this.currentRequest = this.$.openFile.send({"target":this.selectedItem.full_path});
+	},
+	openFileComplete: function(inSender, inEvent) {
+		if (!inEvent.data.returnValue) {
+			this.$.errorPopup.setContent(inEvent.data.errorText);
+			this.$.errorPopupBase.show();
+		}
 	},
 	showList: function() {
 		this.setIndex(0);
