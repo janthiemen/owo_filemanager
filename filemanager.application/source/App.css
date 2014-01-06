@@ -1,6 +1,8 @@
 /*
 	Put anything you reference with "url()" in ../assets/
-	This way, you can minify your application, and just remove the "source" folder for production
+	This way, you can minify your application, and just remove the "source" folder for production.
+	
+	Most of the styling in here comes directly from either the webos-ports template or the enyo JS flickr sample
 */
 #app {
 	background-color: #000000;
@@ -16,6 +18,10 @@
 
 .enyo-fill {
 	background-color: #555;
+}
+
+.scroller {
+	background-color: #b4b4b4;
 }
 
 .list-header {
@@ -69,6 +75,9 @@
 	text-align: center;
 }
 
+/*
+*	Everything down here is taken from the enyojs flickr sample application
+*/
 .panels-sample-flickr-panels {
 	color: white;
 	background: #b4b4b4;
@@ -105,4 +114,29 @@
 .panels-sample-flickr-thumbnail {
 	width: 25px;
 	height: 25px;
+}
+
+.panels-sample-flickr-image {
+	box-sizing: border-box;
+	max-height: 90%;
+	max-width: 90%;
+	border: solid 5px #CCC;
+	box-shadow: 1px 1px 5px #999;
+	width: auto;
+	height: auto;
+}
+
+.panels-sample-flickr-image.wide {
+	width: 100%;
+}
+
+
+@media all and (max-width: 800px) {
+	.panels-sample-flickr-image.wide {
+		width: auto;
+	}
+}
+
+.panels-sample-flickr-image.tall {
+	height: 100%;
 }
