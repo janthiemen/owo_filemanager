@@ -11,8 +11,8 @@ enyo.kind({
 				"Look at all those files!",
 				"why don\'t you mkdir?",
 			]},
-			{kind: "List", fit: true, touch: true, onSetupItem: "buildList", components: [
-                {name: "item", style: "padding: 10px;", dir: false, classes: "panels-sample-flickr-item enyo-border-box", ontap: "itemTap", components: [
+			{kind: "List", name: "mainList", fit: true, touch: true, onSetupItem: "buildList", components: [
+                {name: "item", style: "padding: 10px;", dir: false, classes: "panels-sample-flickr-item enyo-border-box", onhold: "itemHold", ontap: "itemTap", components: [
 					{name: "thumbnail", kind: "Image", classes: "panels-sample-flickr-thumbnail"},
 					{name: "title", classes: "panels-sample-flickr-title"}
 				]}
@@ -25,7 +25,7 @@ enyo.kind({
 			{tag: "br"},
 			{kind: "Scroller", horizontal: "hidden", classes: "scroller", fit: true, touch: true, components:[
 				{fit: true, style: "position: relative;", name: "imageContainer",  showing: false, components: [
-					{name: "imageItem", kind: "Image", classes: "enyo-fit panels-sample-flickr-center panels-sample-flickr-image", onload: "imageLoaded", onerror: "imageLoaded"},
+					{name: "imageItem", kind: "Image", classes: "enyo-fit panels-sample-flickr-center panels-sample-flickr-image"},
 				]},
 				{kind: "onyx.Groupbox", components: [
 					{kind: "onyx.GroupboxHeader", content: "File information"},
@@ -35,7 +35,6 @@ enyo.kind({
 					{name: "full_path", content: "Full path: ", style: "padding: 8px; color: black;"},
 				]},
 				{kind:"onyx.Button", disabled: true, name: "removeButton", ontap: "remove", content: "Remove", classes: "onyx-negative"},
-				//TODO: put this in a popup
 				{name: "mkDirPopup", kind: "onyx.Popup", floating: true, centered: true, style: "padding: 10px", components: [
 					{kind: "onyx.InputDecorator", style: "color: black;", name: "newDirContainer", components: [
 						{kind: "onyx.Input", style: "color: black;", name: "newDir",  placeholder: "Enter new folder name"}
@@ -44,6 +43,18 @@ enyo.kind({
 				]},
 				{kind:"onyx.Button", name: "createDirPopupButton", disabled: true, ontap: "createDirPopup", content: "New folder", classes: "onyx-dark"},
 				{kind:"onyx.Button", name: "openFileButton", disabled: true, ontap: "openFileTap", content: "Open file", classes: "onyx-dark"},
+				//not functional for now!
+				{kind:"onyx.Button", name: "moveItemButton", disabled: true, ontap: "moveItemOpen", content: "Move", classes: "onyx-dark"},
+				{name: "moveItemPopup", kind: "onyx.Popup", floating: true, centered: true, style: "padding: 10px", components: [
+					{kind:"onyx.Button", name: "moveItemListButton", ontap: "moveItemSelectButton", content: "Select folder", classes: "onyx-dark"},
+					{kind: "List", name: "moveList", fit: true, touch: true, onSetupItem: "buildMoveList", components: [
+						{name: "itemMove", style: "padding: 10px;", dir: false, classes: "panels-sample-flickr-item enyo-border-box", ontap: "moveItemTap", components: [
+							{name: "thumbnailMove", kind: "Image", classes: "panels-sample-flickr-thumbnail"},
+							{name: "titleMove", classes: "panels-sample-flickr-title"}
+						]}
+					]}
+				]},
+				//functional again
 				{name: "errorPopupBase", kind: "onyx.Popup", floating: true, centered: true, style: "padding: 10px", components: [
 					{name: "errorPopup", content: "Popup..."}
 				]}
@@ -111,15 +122,60 @@ enyo.kind({
 		inEvent.preventDefault();
 		this.setIndex(0);
 	},
+	//Not yet functional
+	moveItemOpen: function(inSender, inEvent) {
+		this.$.moveItemPopup.show();
+		this.currentList = "move";
+		this.currentMoveDir = "/media/internal";
+		this.currentRequest = this.$.getDirs.send({"dir":this.currentMoveDir});
+	},
+	moveItemTap: function(inSender, inEvent) {
+		this.selectedMoveItem = this.moveResults[inEvent.index];
+		this.currentList = "move";
+		
+		if (this.selectedMoveItem.dir) {
+			if (this.selectedMoveItem.title == "../") {
+				//build the path of the underlying directory
+				dirsArray = this.currentMoveDir.substring(1).split("/");
+				var currentDirTemp = "";
+				for (var i = 0; i < dirsArray.length-1; i++) {
+					currentDirTemp += "/"+dirsArray[i];
+				}
+				if (currentDirTemp == "") currentDirTemp = "/";
+				this.currentMoveDir = currentDirTemp;
+			} else {
+				this.currentMoveDir += "/"+this.selectedMoveItem.title;
+			}
+			this.currentRequest = this.$.getDirs.send({"dir":this.currentMoveDir});
+		}
+	},
+	moveItemSelectButton: function(inSender, inEvent) {
+		//TODO:
+		//service: {"oldPath": this.selectedItem.full_path, "newPath": this.currentMoveDir}
+	},
+	initMoveList: function() {
+		this.$.moveList.setCount(this.moveResults.length);
+		this.$.moveList.reset();
+	},
+	buildMoveList: function(inSender, inEvent) {
+		var i = inEvent.index;
+		var item = this.moveResults[i];
+		this.$.itemMove.addRemoveClass("onyx-selected", inSender.isSelected(inEvent.index));
+        this.$.itemMove.dir = item.dir;
+		this.$.thumbnailMove.setSrc(item.thumbnail);
+		this.$.titleMove.setContent(item.title || "Untitled");
+	},
+	//functional again
 	createDirPopup: function() {
 		this.$.mkDirPopup.show();
 	},
 	initList: function() {
-		this.$.list.setCount(this.results.length);
-		this.$.list.reset();
+		this.$.mainList.setCount(this.results.length);
+		this.$.mainList.reset();
 	},
 	rendered: function() {
 		this.inherited(arguments);
+		this.currentList = "main";
 		this.currentDir = "/media/internal";
 		this.currentRequest = this.$.getDirs.send({"dir":this.currentDir});
 	},
@@ -139,9 +195,10 @@ enyo.kind({
 		this.$.createDirPopupButton.setDisabled(false);
 		this.$.openFileButton.setDisabled(false);
 	},
-	itemTap: function(inSender, inEvent) {
-		this.selectedItem = this.results[inEvent.index];
-		
+	
+	handleItemTap: function() {
+		this.currentList = "main";
+		this.$.moveItemButton.setDisabled(false);
 		this.enableButtons();
 		
 		if (this.selectedItem.dir) {
@@ -168,6 +225,14 @@ enyo.kind({
 			this.$.openFileButton.hide();
 			this.$.imageContainer.hide();
 		} else {
+			//TODO: check if screen is narrow, if, bring setIndex(1) to the front
+			/*
+			*
+			*
+			*
+			*
+			*
+			*/
 			this.currentRequest = this.$.logService.send({"data":"bestand"});
 			this.selectedItem['full_path'] = this.currentDir+"/"+this.selectedItem.title;
 			this.$.file_title.setContent(this.selectedItem.title);
@@ -178,7 +243,9 @@ enyo.kind({
 			this.$.fileExtension.setContent("File extension: "+fileExtension);
 			if (fileExtension == "png" || fileExtension == "jpg" || fileExtension == "bmp") {
 				this.$.imageContainer.show();
+				this.currentRequest = this.$.logService.send({"Afbeelding":this.selectedItem.full_path});
 				this.$.imageItem.setSrc(this.selectedItem.full_path);
+				this.currentRequest = this.$.logService.send({"Afbeelding":this.$.imageItem.src});
 			} else {
 				this.$.imageContainer.hide();
 			}
@@ -190,19 +257,38 @@ enyo.kind({
 		this.$.full_path.setContent(this.selectedItem.full_path);
 		this.currentRequest = this.$.getFileSize.send({"path":this.selectedItem.full_path});
 	},
+	
+	itemTap: function(inSender, inEvent) {
+		this.selectedItem = this.results[inEvent.index];
+		this.handleItemTap();
+	},
+	itemHold: function(inSender, inEvent) {
+		this.selectedItem = this.results[inEvent.index];
+		this.handleItemTap();
+		this.setIndex(1);
+	},
 	getDirsComplete: function(inSender, inEvent) {
 		var result = inEvent.data;
 		var dirs = result.dirs.split(","); 
 		var files = result.files.split(","); 
-		this.results = [];
-		this.results.push({'thumbnail': 'icon_folder.png','title':"../","dir":true});
-		for (var i = 0; i < dirs.length; i++) {
-			if (!dirs[i] == "") this.results.push({'thumbnail': 'icon_folder.png','title':dirs[i],"dir":true});
+		if (this.currentList == "main") {
+			this.results = [];
+			this.results.push({'thumbnail': 'icon_folder.png','title':"../","dir":true});
+			for (var i = 0; i < dirs.length; i++) {
+				if (!dirs[i] == "") this.results.push({'thumbnail': 'icon_folder.png','title':dirs[i],"dir":true});
+			}
+			for (var i = 0; i < files.length; i++) {
+				if (!files[i] == "") this.results.push({'thumbnail': 'icon_file.png','title':files[i],"dir":false});
+			}
+			this.initList();
+		} else {
+			this.moveResults = [];
+			this.moveResults.push({'thumbnail': 'icon_folder.png','title':"../","dir":true});
+			for (var i = 0; i < dirs.length; i++) {
+				if (!dirs[i] == "") this.moveResults.push({'thumbnail': 'icon_folder.png','title':dirs[i],"dir":true});
+			}
+			this.initMoveList();
 		}
-		for (var i = 0; i < files.length; i++) {
-			if (!files[i] == "") this.results.push({'thumbnail': 'icon_file.png','title':files[i],"dir":false});
-		}
-        this.initList();
 	},
 	remove: function(inSender, inEvent) {
 		if (this.selectedItem.dir) {
@@ -224,7 +310,7 @@ enyo.kind({
 		this.$.errorPopupBase.show();
 	},
 	openFileTap: function(inSender, inEvent) {
-		this.currentRequest = this.$.openFile.send({"target":this.selectedItem.full_path});
+		this.currentRequest = this.$.openFile.send({"target":"file://"+this.selectedItem.full_path});
 	},
 	openFileComplete: function(inSender, inEvent) {
 		if (!inEvent.data.returnValue) {
